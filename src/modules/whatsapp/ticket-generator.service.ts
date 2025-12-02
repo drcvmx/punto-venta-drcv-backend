@@ -9,6 +9,8 @@ export class TicketGeneratorService {
         try {
             const browser = await puppeteer.launch({
                 headless: true,
+                // Forzamos la ruta donde sabemos que se instaló Chrome
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/home/opc/.cache/puppeteer/chrome/linux-142.0.7444.175/chrome-linux64/chrome',
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
             const page = await browser.newPage();

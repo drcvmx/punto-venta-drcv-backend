@@ -1,25 +1,44 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import { TicketGeneratorService } from './ticket-generator.service';
 
 @Injectable()
-export class WhatsappService implements OnModuleInit {
+export class WhatsappService {
   private client: Client;
   private readonly logger = new Logger(WhatsappService.name);
 
   constructor(private readonly ticketGenerator: TicketGeneratorService) {
+    // Build puppeteer config conditionally
+    const puppeteerConfig: any = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ],
+    };
+
+    // Only set executablePath if explicitly provided via env variable
+    // This allows dev environments to use Puppeteer's bundled Chrome
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
     this.client = new Client({
       authStrategy: new LocalAuth({ clientId: 'bot-ventas' }),
-      puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      puppeteer: puppeteerConfig,
+      // FIX: Lock WhatsApp Web version to a compatible one to avoid 'getChat' undefined errors
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
       },
+      authTimeoutMs: 60000, // Wait 60s for auth
     });
-  }
-
-  onModuleInit() {
-    this.logger.log('Inicializando cliente de WhatsApp...');
 
     this.client.on('qr', (qr: string) => {
       this.logger.warn('⚠️ ESCANEA EL CÓDIGO QR EN LA TERMINAL ⚠️');
@@ -81,14 +100,23 @@ export class WhatsappService implements OnModuleInit {
       candidateNumber = `52${candidateNumber}`;
     }
 
-    // getNumberId devuelve el ID serializado correcto (incluyendo @c.us y correcciones de 521)
-    const contact = await this.client.getNumberId(candidateNumber);
+    try {
+      // getNumberId devuelve el ID serializado correcto (incluyendo @c.us y correcciones de 521)
+      const contact = await this.client.getNumberId(candidateNumber);
 
-    if (!contact) {
-      this.logger.warn(`El número ${numero} (probado como ${candidateNumber}) no está registrado en WhatsApp.`);
-      return null;
+      if (!contact) {
+        this.logger.warn(`El número ${numero} (probado como ${candidateNumber}) no está registrado en WhatsApp.`);
+        // Fallback: Intentar construir el ID manualmente si getNumberId falla o no encuentra
+        // Para México, a veces se requiere '521' en lugar de '52' para cuentas personales
+        return `${candidateNumber}@c.us`;
+      }
+
+      return contact._serialized;
+    } catch (error) {
+      this.logger.warn(`Error al verificar número con WhatsApp (${error.message}). Usando fallback manual.`);
+      // Fallback manual ante error de Puppeteer/WidFactory
+      // Intentamos construir el ID estándar
+      return `${candidateNumber}@c.us`;
     }
-
-    return contact._serialized;
   }
 }

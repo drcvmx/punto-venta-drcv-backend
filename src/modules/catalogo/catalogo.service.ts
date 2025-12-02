@@ -41,6 +41,9 @@ export class CatalogoService {
         return this.productoRepo.find({
             where: [
                 { tenantId, nombre: ILike(`%${query}%`) },
+                { tenantId, marca: ILike(`%${query}%`) },
+                { tenantId, categoria: ILike(`%${query}%`) },
+                { tenantId, codigoBarras: ILike(`%${query}%`) }, // Búsqueda parcial por si acaso
             ],
             relations: ['variantes', 'variantes.inventario'],
             take: 10,

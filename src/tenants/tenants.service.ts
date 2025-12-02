@@ -61,17 +61,23 @@ export class TenantsService {
         'restaurante.local': 'Restaurante El Sazón',
         'miselania.local': 'Miselania Maria',
         'api-industria.local': 'API PARA LA INDUSTRIA',
+        // Production environments (LOWERCASE KEYS)
+        'donjose.store.drcv.site': 'Tienda Don Jose',
+        'eltornillo.store.drcv.site': 'Ferretería El Tornillo',
+        'elsazon.store.drcv.site': 'Restaurante El Sazón',
+        'miselaniamaria.store.drcv.site': 'Miselania Maria',
+        'apidelaindustria.store.drcv.site': 'API PARA LA INDUSTRIA',
     };
 
     /**
      * Buscar tenant por dominio
      */
     async findByDomain(domain: string): Promise<Tenant> {
-        // Limpiar puerto si existe
-        const cleanDomain = domain.split(':')[0];
+        // Limpiar puerto y convertir a minúsculas
+        const cleanDomain = domain.split(':')[0].toLowerCase();
 
         // Buscar coincidencia exacta (con puerto) o solo dominio (sin puerto)
-        const tenantName = this.domainMap[domain] || this.domainMap[cleanDomain] || this.domainMap['localhost'];
+        const tenantName = this.domainMap[domain.toLowerCase()] || this.domainMap[cleanDomain] || this.domainMap['localhost'];
 
         if (!tenantName) {
             throw new NotFoundException(`Tenant no encontrado para dominio: ${domain}`);
