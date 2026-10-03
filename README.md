@@ -230,32 +230,94 @@ flowchart TB
 
 El repositorio no incluye Dockerfile, Docker Compose ni CI/CD. El diagrama muestra el flujo de despliegue Node.js documentado actualmente, no una infraestructura cloud automatizada.
 
-## Estructura de carpetas
+## Estructura de carpetas y responsabilidades
+
+La aplicación está organizada como un monolito modular con separación por dominio y capas de infraestructura. La idea principal es mantener cada módulo de negocio aislado en su responsabilidad, mientras que la autenticación, el tenant, la validación y la configuración se comparten en la base de la aplicación.
 
 ```text
 src/
-├── auth/                  # Login, registro, JWT, Passport y guards
-├── common/                # Middleware y decoradores compartidos
+├── app.module.ts              # Composición principal de la aplicación
+├── app.controller.ts          # Endpoints base de salud/estado
+├── app.service.ts             # Lógica general de bootstrap de la app
+├── main.ts                   # Arranque HTTP, CORS, puerto y configuración global
+├── auth/                     # Capa de autenticación y seguridad
+│   ├── controllers/ or *.controller.ts
+│   ├── services/ or *.service.ts
+│   ├── dto/
+│   ├── guards/
+│   ├── strategies/
+│   ├── decorators/
+│   └── auth.module.ts
+├── common/                   # Infraestructura transversal reutilizable
+│   ├── decorators/
+│   └── middlewares/
+│       └── tenant.middleware.ts   # Lee x-tenant-id y contextualiza el negocio
 ├── modules/
-│   ├── catalogo/          # Productos, variantes y catálogo global
-│   ├── chatbot/           # Chatbot conectado con Groq
-│   ├── inventario/        # Existencias y ajustes
-│   ├── orders/            # Pedidos, entregas y reportes
-│   ├── payments/          # Cobros y webhooks de Openpay
-│   ├── restaurant/        # Mesas y operaciones de restaurante
-│   └── whatsapp/          # Tickets y notificaciones
-├── tenants/               # Negocios y relaciones con propietarios
-├── users/                 # Usuarios y permisos por tenant
-├── types/                 # Declaraciones TypeScript externas
-├── app.module.ts          # Composición de la aplicación
-└── main.ts                # Bootstrap, CORS y puerto HTTP
+│   ├── catalogo/             # Dominio del catálogo y productos
+│   │   ├── catalogo.controller.ts
+│   │   ├── catalogo.service.ts
+│   │   ├── dto/
+│   │   ├── entities/
+│   │   └── catalogo.module.ts
+│   ├── inventario/           # Stock, existencias, ajustes y movimientos
+│   ├── orders/               # Pedidos, entregas, estados y reportes
+│   ├── payments/             # Cobros, webhooks y Openpay
+│   ├── restaurant/           # Mesas, operaciones y estadisticas gastronómicas
+│   ├── chatbot/              # Integraciones con IA/Groq
+│   └── whatsapp/             # Tickets y envío de mensajes por WhatsApp
+├── tenants/                  # Entidades y servicios relacionados con negocios/tenant
+│   ├── entities/
+│   ├── tenants.service.ts
+│   └── tenants.module.ts
+├── users/                    # Usuarios, permisos y acceso por negocio
+│   ├── entities/
+│   ├── users.service.ts
+│   ├── users.controller.ts
+│   └── users.module.ts
+├── types/                    # Declaraciones TypeScript externas y tipados auxiliares
+├── ...
+└──
 
-sql/                      # Esquema, correcciones y datos de demostración
-scripts/                  # Seeds y utilidades SQL/Node.js
-test/                     # Pruebas end-to-end
+sql/                         # Scripts SQL del esquema, correcciones y datos demo
+scripts/                     # Utilidades y seeds SQL/Node.js
+test/                        # Pruebas end-to-end
 ```
 
-Cada módulo de dominio suele separar controller, service, DTOs y entities. Los controllers exponen endpoints, los services contienen reglas de negocio y las entities representan el modelo persistido mediante TypeORM.
+### División por capas
+
+- Capa de entrada: controllers y rutas HTTP
+  - Exponen endpoints REST para cada dominio.
+  - Reciben DTOs y validaciones de entrada.
+
+- Capa de negocio: services
+  - Contienen la lógica del dominio: validaciones, reglas, cálculos y flujo de negocio.
+  - Orquestan las operaciones entre entidades, repositorios y servicios externos.
+
+- Capa de persistencia: entities + TypeORM
+  - Definen los modelos de datos y las relaciones de las tablas.
+  - Se conectan a PostgreSQL mediante TypeORM.
+
+- Capa de seguridad: auth, guards, strategies, decorators
+  - Controlan autenticación, roles, permisos y acceso por tenant.
+  - Validan que el usuario tenga acceso correcto al negocio solicitado.
+
+- Capa transversal: common
+  - Middleware global como `TenantMiddleware`, decorators reutilizables y utilidades cross-cutting.
+
+- Capa de integración: payments, chatbot, whatsapp
+  - Encapsulan conectores con Openpay, Groq y WhatsApp Web/Puppeteer.
+
+### Patrón observado en el proyecto
+
+Cada módulo de negocio suele seguir una estructura muy clara:
+
+- `*.controller.ts` → expone la API
+- `*.service.ts` → lógica del negocio
+- `dto/` → validación y contratos de entrada
+- `entities/` → modelos TypeORM
+- `*.module.ts` → registro del módulo y dependencias
+
+Esto permite mantener el monolito modular, facilita el crecimiento del código y deja un punto de extensión natural para cada dominio del sistema.
 
 ## Requisitos
 
